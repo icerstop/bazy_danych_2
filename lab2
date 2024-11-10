@@ -1,0 +1,232 @@
+1. create or replace procedure NowyPracownik
+    (p_nazwisko in varchar2,
+    p_zespol in varchar2,
+    p_szef in varchar2,
+    p_placa_pod in number
+    ) as
+    v_id_szefa number;
+    v_id_zesp number;
+    v_id_prac number;
+    begin
+        select id_zesp
+        into v_id_zesp
+        from zespoly
+        where nazwa = p_zespol;
+
+        select id_prac
+        into v_id_szefa
+        from pracownicy
+        where nazwisko = p_szef;
+
+        select nvl(max(id_prac), 0) + 1
+        into v_id_prac
+        from pracownicy;
+
+        insert into pracownicy (id_prac, nazwisko, etat, id_szefa, zatrudniony, placa_pod, id_zesp)
+        values (v_id_prac, p_nazwisko, 'STAZYSTA', v_id_szefa, SYSDATE, p_placa_pod, v_id_zesp);
+
+        commit;
+end;
+
+exec NowyPracownik('DYNDALSKI', 'ALGORYTMY', 'BLAZEWICZ', 250);
+
+select * from pracownicy where nazwisko = 'DYNDALSKI';
+
+2.  create or replace function PlacaNetto
+    (p_placa_brutto in number,
+    p_stawka in number default 20
+    ) return number is
+    v_placa_netto number;
+    begin
+        v_placa_netto := p_placa_brutto * (1-p_stawka / 100 );
+        return v_placa_netto;
+    end PlacaNetto;
+/
+    select nazwisko,
+    placa_pod as brutto,
+    PlacaNetto(placa_pod, 35) as netto
+    from pracownicy
+    where etat = 'PROFESOR'
+    ORDER BY nazwisko;
+
+3.  create or replace function Silnia (
+    p_n in number
+) return number is
+    v_wynik number := 1;
+    begin
+        for i in 1..p_n loop
+            v_wynik := v_wynik * i;
+        end loop;
+        return v_wynik;
+    end Silnia;
+/
+select Silnia(8) from Dual;
+
+4.  create or replace function SilniaRek (
+    p_n in number
+) return number is
+begin
+    if p_n = 0 then
+        return 1;
+    else
+        return p_n * SilniaRek(p_n - 1);
+    end if;
+end SIlniaRek;
+/
+
+select SilniaRek(10) from Dual;
+
+5. create or replace function IleLat (
+    p_data date
+)
+return number is
+    lata number;
+begin
+    lata := trunc(months_between(sysdate, p_data)/12);
+    return lata;
+end;
+
+6. CREATE OR REPLACE PACKAGE Konwersja AS
+    FUNCTION Cels_To_Fahr(celsius NUMBER) RETURN NUMBER;
+    FUNCTION Fahr_To_Cels(fahrenheit NUMBER) RETURN NUMBER;
+END Konwersja;
+/
+create or replace package body Konwersja as
+    function Cels_To_Fahr (celsius number) return number is
+    begin
+         return (celsius * 9/5) + 32;
+    end Cels_To_Fahr;
+   
+    function Fahr_To_Cels (fahrenheit number) return number is
+    begin
+        return (fahrenheit - 32) * 5/9;
+    end Fahr_To_Cels;
+end Konwersja;
+/
+
+7.  create or replace package Zmienne as
+    vLicznik number := 0;
+
+    procedure ZwiekszLicznik;
+    procedure ZmniejszLicznik;
+    function PokazLicznik return number;
+end Zmienne;
+/
+create or replace package body Zmienne as
+    procedure ZwiekszLicznik is
+    begin
+        vLicznik := vLicznik + 1;
+        DBMS_OUTPUT.PUT_LINE('Zwiększono');
+    end ZwiekszLicznik;
+
+    procedure ZmniejszLicznik is
+    begin
+        vLicznik := vLicznik - 1;
+        DBMS_OUTPUT.PUT_LINE('Zmniejszono');
+    end ZmniejszLicznik;
+
+    function PokazLicznik return number is
+        begin
+            return vLicznik;
+        end PokazLicznik;
+
+    begin
+        vLicznik := 1;
+        DBMS_OUTPUT.PUT_LINE('Zainicjalizowano');
+    end Zmienne;  
+
+8. CREATE OR REPLACE PACKAGE IntZespoly AS
+    PROCEDURE DodajZespol(p_nazwa VARCHAR2, p_adres VARCHAR2);
+
+    PROCEDURE UsunZespolPoId(p_id_zespolu NUMBER);
+
+    PROCEDURE UsunZespolPoNazwie(p_nazwa VARCHAR2);
+
+    PROCEDURE ModyfikujZespol(p_id_zespolu NUMBER, p_nowa_nazwa VARCHAR2, p_nowy_adres VARCHAR2);
+
+    FUNCTION PobierzIdZespolu(p_nazwa VARCHAR2) RETURN NUMBER;
+
+    FUNCTION PobierzNazweZespolu(p_id_zespolu NUMBER) RETURN VARCHAR2;
+
+    FUNCTION PobierzAdresZespolu(p_id_zespolu NUMBER) RETURN VARCHAR2;
+END IntZespoly;
+/
+CREATE OR REPLACE PACKAGE BODY IntZespoly AS
+
+    PROCEDURE DodajZespol(p_nazwa VARCHAR2, p_adres VARCHAR2) IS
+    BEGIN
+        INSERT INTO Zespoly (nazwa, adres) VALUES (p_nazwa, p_adres);
+        COMMIT;
+    END DodajZespol;
+
+    PROCEDURE UsunZespolPoId(p_id_zespolu NUMBER) IS
+    BEGIN
+        DELETE FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+        COMMIT;
+    END UsunZespolPoId;
+
+    PROCEDURE UsunZespolPoNazwie(p_nazwa VARCHAR2) IS
+    BEGIN
+        DELETE FROM Zespoly WHERE nazwa = p_nazwa;
+        COMMIT;
+    END UsunZespolPoNazwie;
+
+    PROCEDURE ModyfikujZespol(p_id_zespolu NUMBER, p_nowa_nazwa VARCHAR2, p_nowy_adres VARCHAR2) IS
+    BEGIN
+        UPDATE Zespoly
+        SET nazwa = p_nowa_nazwa, adres = p_nowy_adres
+        WHERE id_zespolu = p_id_zespolu;
+        COMMIT;
+    END ModyfikujZespol;
+
+    FUNCTION PobierzIdZespolu(p_nazwa VARCHAR2) RETURN NUMBER IS
+        v_id_zespolu NUMBER;
+    BEGIN
+        SELECT id_zespolu INTO v_id_zespolu FROM Zespoly WHERE nazwa = p_nazwa;
+        RETURN v_id_zespolu;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN NULL;
+    END PobierzIdZespolu;
+
+    FUNCTION PobierzNazweZespolu(p_id_zespolu NUMBER) RETURN VARCHAR2 IS
+        v_nazwa VARCHAR2(100);
+    BEGIN
+        SELECT nazwa INTO v_nazwa FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+        RETURN v_nazwa;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN NULL;
+    END PobierzNazweZespolu;
+
+    FUNCTION PobierzAdresZespolu(p_id_zespolu NUMBER) RETURN VARCHAR2 IS
+        v_adres VARCHAR2(100);
+    BEGIN
+        SELECT adres INTO v_adres FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+        RETURN v_adres;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN NULL;
+    END PobierzAdresZespolu;
+
+END IntZespoly;
+/
+
+
+
+
+9. select object_name, object_type, status
+from user_objects
+where object_type in ('procedure', 'function', 'package', 'package body')
+order by object_type, object_name;
+
+select name, type, line, text 
+from user_source 
+where type in ('PROCEDURE', 'FUNCTION', 'PACKAGE', 'PACKAGE BODY') 
+order by name, type, line;
+
+10. DROP FUNCTION Silnia;
+DROP FUNCTION SilniaRek;
+DROP FUNCTION IleLat;
+
+11. DROP PACKAGE Konwersja;
