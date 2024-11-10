@@ -1,0 +1,122 @@
+1. declare
+    vTekst varchar(20) := 'Witaj, świecie!';
+    vLiczba number := 1000.456;
+begin
+    DBMS_OUTPUT.PUT_LINE('Zmienna vTekst: ' || vTekst);
+    DBMS_OUTPUT.PUT_LINE('Zmienna vLiczba: ' || vLiczba);
+end;
+
+2. declare
+    vTekst varchar(50) := 'Witaj, świecie!';
+    vLiczba number := 1000.456;
+begin
+    vTekst := vTekst || 'Witaj, nowy dniu!';
+    vLiczba := vLiczba + power(10, 15);
+    DBMS_OUTPUT.PUT_LINE('Zmienna vTekst: ' || vTekst);
+    DBMS_OUTPUT.PUT_LINE('Zmienna vLiczba: ' || vLiczba);
+end;
+
+3. DECLARE
+    liczba1 number(9,7) := 10.2356000;  
+    liczba2 number(9,7) := 0.0000001;   
+    wynik number(9,7);                
+BEGIN
+    wynik := liczba1 + liczba2;
+    DBMS_OUTPUT.PUT_LINE('Wynik dodawania ' || TO_CHAR(liczba1, '99.9999999') || 
+                         ' i ' || TO_CHAR(liczba2, '0.9999999') || 
+                         ': ' || TO_CHAR(wynik, '99.9999999'));
+END;
+
+4. DECLARE
+    promien number := 5;
+    cPI constant number:= 3.14;
+    obwod number;
+    pole number;
+BEGIN
+    obwod := 2*cPI*promien;
+    pole := cPi*power(promien, 2);
+    dbms_output.put_line('Obwód koła o promieniu równym ' || promien || ': ' || obwod);
+    dbms_output.put_line('Pole koła o promieniu równym ' || promien || ': ' || pole);
+END;
+
+5. declare
+    vNazwisko pracownicy.NAZWISKO%TYPE;
+    vEtat pracownicy.ETAT%TYPE;
+begin
+    select nazwisko, etat
+    into vNazwisko, vEtat
+    from pracownicy 
+    where placa_pod = (select max(placa_pod) from pracownicy);
+    
+    dbms_output.put_line('Najlepiej zarabia pracownik ' || vNazwisko || '.');
+    dbms_output.put_line('Pracuje on jako ' || vEtat || '.');
+end;
+
+6. declare
+    vPracownik pracownicy%rowtype;
+begin
+    select *
+    into vPracownik
+    from pracownicy 
+    where placa_pod = (select max(placa_pod) from pracownicy);
+    
+    dbms_output.put_line('Najlepiej zarabia pracownik ' || vPracownik.nazwisko || '.');
+    dbms_output.put_line('Pracuje on jako ' || vPracownik.etat || '.');
+end;
+
+7. declare
+    subtype tPieniadze is number;
+    vZarobki tPieniadze;
+    vNazwisko pracownicy.NAZWISKO%TYPE;
+begin
+    select nazwisko, placa_pod
+    into vNazwisko, vZarobki
+    from pracownicy 
+    where nazwisko = 'SLOWINSKI';
+    
+    dbms_output.put_line('Pracownik ' || vNazwisko || ' zarabia rocznie ' || vZarobki*12);
+
+end;
+
+
+8. declare 
+    vSekunda number;
+begin
+    loop
+        select to_number(to_char(sysdate, 'SS')) into vSekunda from dual;
+
+        if vSekunda = 25 then
+            dbms_output.put_line('Nadeszła 25 sekunda!');
+            exit;
+        end if;
+    end loop;
+end;
+
+9. declare 
+    vI number := 1;
+    vN number := 10;
+    vWynik number := 1;
+begin
+    loop
+        vWynik := vWynik * vI;
+        vI := vI + 1;
+        if vI = vN + 1 then
+            dbms_output.put_line('Silnia dla n= ' || vN || ': ' || vWynik);
+            exit;
+        end if;
+    end loop;
+end;
+
+10. declare 
+    vData date := to_date('13-12-2000', 'DD-MM-YYYY');
+begin
+        loop
+            vData := vData + interval '1' month;
+            if to_char(vData, 'DY') = 'FRI' then
+                dbms_output.put_line(to_char(vData, 'DD-MM-YYYY'));
+        end if;
+        if vData = to_date('13-01-2101', 'DD-MM-YYYY') then 
+            exit;
+        end if;
+    end loop;
+end;
