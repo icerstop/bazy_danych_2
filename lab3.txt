@@ -1,0 +1,392 @@
+1. declare 
+    cursor assistant_cursor is
+        select nazwisko, zatrudniony
+        from pracownicy
+        where etat = 'ASYSTENT';
+
+    v_nazwisko pracownicy.nazwisko%type;
+    v_zatrudniony pracownicy.zatrudniony%type;
+
+begin
+    open assistant_cursor;
+
+    loop
+
+        fetch assistant_cursor into v_nazwisko, v_zatrudniony;
+
+        exit when assistant_cursor%notfound;
+
+        dbms_output.put_line(v_nazwisko || ' pracuje od ' || to_char(v_zatrudniony, 'DD-MM-YYYY'));
+    end loop; 
+
+    close assistant_cursor;
+end;
+
+2. declare 
+    cursor top_employees_cursor is
+        select nazwisko
+        from pracownicy
+        order by placa_pod desc;
+
+    v_nazwisko pracownicy.nazwisko%type;
+begin
+    open top_employees_cursor;
+    
+    loop
+
+        fetch top_employees_cursor into v_nazwisko;
+
+        exit when top_employees_cursor%notfound;
+
+        if top_employees_cursor%rowcount <= 3 then
+            dbms_output.put_line(top_employees_cursor%rowcount || ' : ' || v_nazwisko);
+        end if;
+
+        exit when top_employees_cursor%rowcount = 3;
+    end loop;
+
+    close top_employees_cursor;
+end;
+
+3. declare
+    cursor monday_employees_cursor is 
+        select nazwisko, placa_pod
+        from pracownicy
+        where to_char(zatrudniony, 'DAY', 'NLS_DATE_LANGUAGE=POLISH') = 'PONIEDZIAŁEK';
+begin
+    for employee_record in monday_employees_cursor loop 
+        update pracownicy 
+        set placa_pod = employee_record.placa_pod * 1.2
+        where nazwisko = employee_record.nazwisko;
+
+        dbms_output.put_line(employee_record.nazwisko || ' - nowa płaca: ' || to_char(employee_record.placa_pod*1.2, '9999.99'));
+    end loop;
+
+    commit;
+end;
+
+4. declare 
+    cursor employee_cursor is
+        select id_prac, nazwisko, etat, id_szefa, zatrudniony, placa_pod, placa_dod, id_zesp
+        from pracownicy;
+begin
+    for employee_record in employee_cursor loop 
+        if employee_record.id_zesp = 20 then
+            update pracownicy
+            set placa_dod = nvl(placa_dod, 0)+100
+            where id_prac = employee_record.id_prac;
+
+        elsif employee_record.id_zesp = 10 then
+            update pracownicy
+            set placa_dod = nvl(placa_dod, 0)+150
+            where id_prac = employee_record.id_prac;
+        
+        elsif employee_record.etat = 'STAZYSTA' then
+            delete from pracownicy
+            where id_prac = employee_record.id_prac;
+        end if;
+    end loop;
+commit;
+end;
+
+select * from pracownicy
+
+5. create or replace procedure PokazPracownikowEtatu (
+    p_etat in varchar2
+) as
+begin
+    for employee_record in (
+        select nazwisko
+        from pracownicy
+        where etat = p_etat
+    ) loop 
+
+    dbms_output.put_line(employee_record.nazwisko);
+
+    end loop;
+end;
+
+exec PokazPracownikowEtatu('PROFESOR'); 
+
+6. create or replace procedure RaportKadrowy as
+    cursor etaty_cursor is
+        select  distinct etat
+        from pracownicy;
+    
+    v_lp number := 0;
+    v_total_salary number := 0;
+    v_avg_salary varchar2(50);
+    v_count number := 0;
+
+    cursor pracownicy_cursor (p_etat varchar2) is 
+        select nazwisko, nvl(placa_pod, 0) + nvl(placa_dod, 0) as pensja
+        from pracownicy
+        where etat = p_etat
+        order by nazwisko;
+
+begin 
+    for etat_record in etaty_cursor loop
+        dbms_output.put_line('Etat: ' || etat_record.etat);
+        dbms_output.put_line('--------------------------');
+
+        v_lp := 0;
+        v_total_salary := 0;
+        v_count := 0;
+
+        for pracownik_record in pracownicy_cursor(etat_record.etat) loop
+            v_lp := v_lp + 1;
+            v_count := v_count + 1;
+            v_total_salary := v_total_salary + pracownik_record.pensja;
+            dbms_output.put_line(v_lp|| '. '|| pracownik_record.nazwisko || ', pensja: ' || to_char(pracownik_record.pensja, '9999.9'));
+        end loop;
+
+        if v_count > 0 then 
+            v_avg_salary := to_char(v_total_salary/v_count, '9999.99');
+        else
+            v_avg_salary := 'brak';
+        end if;
+        dbms_output.put_line('Liczba pracowników: ' || v_count);
+        dbms_output.put_line('Średnia pensja: ' || v_avg_salary);
+        dbms_output.put_line('');
+    end loop;
+end;  
+
+exec RaportKadrowy;
+        
+7. CREATE OR REPLACE PACKAGE BODY IntZespoly AS
+
+    PROCEDURE DodajZespol(p_nazwa VARCHAR2, p_adres VARCHAR2) IS
+    BEGIN
+        INSERT INTO Zespoly (nazwa, adres) VALUES (p_nazwa, p_adres);
+
+        IF SQL%ROWCOUNT = 0 THEN
+            DBMS_OUTPUT.PUT_LINE('Nie udało się wstawić zespołu: ' || p_nazwa);
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('Zespół wstawiony: ' || p_nazwa);
+        END IF;
+
+        COMMIT;
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd podczas wstawiania zespołu: ' || SQLERRM);
+            ROLLBACK;
+    END DodajZespol;
+
+    PROCEDURE UsunZespolPoId(p_id_zespolu NUMBER) IS
+    BEGIN
+        DELETE FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+
+        IF SQL%ROWCOUNT = 0 THEN
+            DBMS_OUTPUT.PUT_LINE('Nie udało się usunąć zespołu o ID: ' || p_id_zespolu);
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('Zespół usunięty o ID: ' || p_id_zespolu);
+        END IF;
+
+        COMMIT;
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd podczas usuwania zespołu: ' || SQLERRM);
+            ROLLBACK;
+    END UsunZespolPoId;
+
+    PROCEDURE UsunZespolPoNazwie(p_nazwa VARCHAR2) IS
+    BEGIN
+        DELETE FROM Zespoly WHERE nazwa = p_nazwa;
+
+        IF SQL%ROWCOUNT = 0 THEN
+            DBMS_OUTPUT.PUT_LINE('Nie udało się usunąć zespołu: ' || p_nazwa);
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('Zespół usunięty: ' || p_nazwa);
+        END IF;
+
+        COMMIT;
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd podczas usuwania zespołu: ' || SQLERRM);
+            ROLLBACK;
+    END UsunZespolPoNazwie;
+
+    PROCEDURE ModyfikujZespol(p_id_zespolu NUMBER, p_nowa_nazwa VARCHAR2, p_nowy_adres VARCHAR2) IS
+    BEGIN
+        UPDATE Zespoly
+        SET nazwa = p_nowa_nazwa, adres = p_nowy_adres
+        WHERE id_zespolu = p_id_zespolu;
+
+        IF SQL%ROWCOUNT = 0 THEN
+            DBMS_OUTPUT.PUT_LINE('Nie udało się zmodyfikować zespołu o ID: ' || p_id_zespolu);
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('Zespół zmodyfikowany: ' || p_nowa_nazwa);
+        END IF;
+
+        COMMIT;
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd podczas modyfikacji zespołu: ' || SQLERRM);
+            ROLLBACK;
+    END ModyfikujZespol;
+
+    FUNCTION PobierzIdZespolu(p_nazwa VARCHAR2) RETURN NUMBER IS
+        v_id_zespolu NUMBER;
+    BEGIN
+        SELECT id_zespolu INTO v_id_zespolu FROM Zespoly WHERE nazwa = p_nazwa;
+        RETURN v_id_zespolu;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN NULL;
+    END PobierzIdZespolu;
+
+    FUNCTION PobierzNazweZespolu(p_id_zespolu NUMBER) RETURN VARCHAR2 IS
+        v_nazwa VARCHAR2(100);
+    BEGIN
+        SELECT nazwa INTO v_nazwa FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+        RETURN v_nazwa;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN NULL;
+    END PobierzNazweZespolu;
+
+    FUNCTION PobierzAdresZespolu(p_id_zespolu NUMBER) RETURN VARCHAR2 IS
+        v_adres VARCHAR2(100);
+    BEGIN
+        SELECT adres INTO v_adres FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+        RETURN v_adres;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RETURN NULL;
+    END PobierzAdresZespolu;
+
+END IntZespoly;
+/
+
+8. CREATE OR REPLACE PACKAGE IntZespoly AS
+    PROCEDURE DodajZespol(p_id_zespolu NUMBER, p_nazwa VARCHAR2, p_adres VARCHAR2);
+
+    PROCEDURE UsunZespolPoId(p_id_zespolu NUMBER);
+
+    PROCEDURE UsunZespolPoNazwie(p_nazwa VARCHAR2);
+
+    PROCEDURE ModyfikujZespol(p_id_zespolu NUMBER, p_nowa_nazwa VARCHAR2, p_nowy_adres VARCHAR2);
+
+    FUNCTION PobierzIdZespolu(p_nazwa VARCHAR2) RETURN NUMBER;
+
+    FUNCTION PobierzNazweZespolu(p_id_zespolu NUMBER) RETURN VARCHAR2;
+
+    FUNCTION PobierzAdresZespolu(p_id_zespolu NUMBER) RETURN VARCHAR2;
+END IntZespoly;
+/
+
+CREATE OR REPLACE PACKAGE BODY IntZespoly AS
+
+    PROCEDURE DodajZespol(p_id_zespolu NUMBER, p_nazwa VARCHAR2, p_adres VARCHAR2) IS
+        v_count NUMBER;
+    BEGIN
+
+        SELECT COUNT(*) INTO v_count FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+        IF v_count > 0 THEN
+            RAISE_APPLICATION_ERROR(-10003, 'Powielony identyfikator zespołu: ' || p_id_zespolu);
+        END IF;
+
+        INSERT INTO Zespoly (id_zespolu, nazwa, adres) VALUES (p_id_zespolu, p_nazwa, p_adres);
+
+        DBMS_OUTPUT.PUT_LINE('Zespół wstawiony: ' || p_nazwa);
+        COMMIT;
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd podczas wstawiania zespołu: ' || SQLERRM);
+            ROLLBACK;
+    END DodajZespol;
+
+    PROCEDURE UsunZespolPoId(p_id_zespolu NUMBER) IS
+        v_count NUMBER;
+    BEGIN
+
+        SELECT COUNT(*) INTO v_count FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+        IF v_count = 0 THEN
+            RAISE_APPLICATION_ERROR(-10002, 'Identyfikator zespołu nie istnieje: ' || p_id_zespolu);
+        END IF;
+
+        DELETE FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+
+        DBMS_OUTPUT.PUT_LINE('Zespół usunięty o ID: ' || p_id_zespolu);
+        COMMIT;
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd podczas usuwania zespołu: ' || SQLERRM);
+            ROLLBACK;
+    END UsunZespolPoId;
+
+
+    PROCEDURE UsunZespolPoNazwie(p_nazwa VARCHAR2) IS
+        v_count NUMBER;
+    BEGIN
+
+        SELECT COUNT(*) INTO v_count FROM Zespoly WHERE nazwa = p_nazwa;
+        IF v_count = 0 THEN
+            RAISE_APPLICATION_ERROR(-10001, 'Nazwa zespołu nie istnieje: ' || p_nazwa);
+        END IF;
+
+        DELETE FROM Zespoly WHERE nazwa = p_nazwa;
+
+        DBMS_OUTPUT.PUT_LINE('Zespół usunięty: ' || p_nazwa);
+        COMMIT;
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd podczas usuwania zespołu: ' || SQLERRM);
+            ROLLBACK;
+    END UsunZespolPoNazwie;
+
+
+    PROCEDURE ModyfikujZespol(p_id_zespolu NUMBER, p_nowa_nazwa VARCHAR2, p_nowy_adres VARCHAR2) IS
+        v_count NUMBER;
+    BEGIN
+
+        SELECT COUNT(*) INTO v_count FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+        IF v_count = 0 THEN
+            RAISE_APPLICATION_ERROR(-10002, 'Identyfikator zespołu nie istnieje: ' || p_id_zespolu);
+        END IF;
+
+        UPDATE Zespoly
+        SET nazwa = p_nowa_nazwa, adres = p_nowy_adres
+        WHERE id_zespolu = p_id_zespolu;
+
+        DBMS_OUTPUT.PUT_LINE('Zespół zmodyfikowany: ' || p_nowa_nazwa);
+        COMMIT;
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd podczas modyfikacji zespołu: ' || SQLERRM);
+            ROLLBACK;
+    END ModyfikujZespol;
+
+    FUNCTION PobierzIdZespolu(p_nazwa VARCHAR2) RETURN NUMBER IS
+        v_id_zespolu NUMBER;
+    BEGIN
+        SELECT id_zespolu INTO v_id_zespolu FROM Zespoly WHERE nazwa = p_nazwa;
+        RETURN v_id_zespolu;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(-10001, 'Nazwa zespołu nie istnieje: ' || p_nazwa);
+    END PobierzIdZespolu;
+
+    FUNCTION PobierzNazweZespolu(p_id_zespolu NUMBER) RETURN VARCHAR2 IS
+        v_nazwa VARCHAR2(100);
+    BEGIN
+        SELECT nazwa INTO v_nazwa FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+        RETURN v_nazwa;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(-10002, 'Identyfikator zespołu nie istnieje: ' || p_id_zespolu);
+    END PobierzNazweZespolu;
+
+    FUNCTION PobierzAdresZespolu(p_id_zespolu NUMBER) RETURN VARCHAR2 IS
+        v_adres VARCHAR2(100);
+    BEGIN
+        SELECT adres INTO v_adres FROM Zespoly WHERE id_zespolu = p_id_zespolu;
+        RETURN v_adres;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            RAISE_APPLICATION_ERROR(-10002, 'Identyfikator zespołu nie istnieje: ' || p_id_zespolu);
+    END PobierzAdresZespolu;
+
+END IntZespoly;
+/
+

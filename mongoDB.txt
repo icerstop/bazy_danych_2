@@ -1,0 +1,275 @@
+1. db.pracownicy.find().count()
+
+2. db.zespoly.insertMany([
+  {"id_zesp":10,"nazwa":"ADMINISTRACJA","adres":"PIOTROWO 3A"},
+  {"id_zesp":20,"nazwa":"SYSTEMY ROZPROSZONE","adres":"PIOTROWO 3A"},
+  {"id_zesp":30,"nazwa":"SYSTEMY EKSPERCKIE","adres":"STRZELECKA 14"},
+  {"id_zesp":40,"nazwa":"ALGORYTMY","adres":"WLODKOWICA 16"},
+  {"id_zesp":50,"nazwa":"BADANIA OPERACYJNE","adres":"MIELZYNSKIEGO 30"}
+])
+
+3. MongoDB nie pozwala na mieszanie pól do włączenia (nazwisko:1) i wyłączenia (placa_pod:0) w tym samym wywołaniu
+
+4. db.pracownicy.find(
+  {
+    $or: [
+      {"etat": "ASYSTENT"}, 
+      {"placa_pod": { $gte: 200, $lte: 500 }}
+    ]
+  },
+  {
+    "nazwisko": 1,
+    "etat": 1,
+    "placa_pod": 1,
+    "_id": 0
+  }
+)
+
+5. db.pracownicy.find(
+  { "placa_pod": { $gt: 400 } },
+  { "nazwisko": 1, "etat": 1, "placa_pod": 1, "_id": 0 } 
+).sort(
+  { "etat": 1, "placa_pod": -1 } 
+)
+
+6. db.pracownicy.find(
+  { "id_zesp": 20 },
+  { "nazwisko": 1, "placa_pod": 1, "_id": 0 }
+).sort(
+  { "placa_pod": -1 }
+).skip(1).limit(1) 
+
+7. db.pracownicy.find(
+  {
+    $and: [
+      { "id_zesp": { $in: [20, 30] } }, 
+      { "etat": { $ne: "ASYSTENT" } }, 
+      { "nazwisko": { $regex: "I$" } } 
+    ]
+  },
+  {
+    "nazwisko": 1,
+    "etat": 1,
+    "_id": 0
+  }
+)
+
+8. db.pracownicy.aggregate([
+  { 
+    $sort: { "placa_pod": -1 }
+  },
+  { 
+    $skip: 2
+  },
+  { 
+    $limit: 1
+  },
+  {
+    $project: { 
+      "nazwisko": 1, 
+      "etat": 1, 
+      "rok_zatrudnienia": { $year: "$zatrudniony" },
+      "_id": 0 
+    }
+  }
+])
+
+9. db.pracownicy.aggregate([
+  {
+    $group: {
+      _id: "$id_zesp",
+      liczba_pracownikow: { $sum: 1 }
+    }
+  },
+  {
+    $match: {
+      liczba_pracownikow: { $gt: 3 }
+    }
+  }
+])
+
+10. db.pracownicy.aggregate([
+  {
+    $lookup: {
+      from: "zespoly",
+      localField: "id_zesp", 
+      foreignField: "id_zesp",
+      as: "zespol_info"
+    }
+  },
+  {
+    $match: {
+      id_zesp: { $in: [20, 30] }
+    }
+  },
+  {
+    $project: {
+      nazwisko: 1,
+      dept: { $arrayElemAt: ["$zespol_info.adres", 0] },
+      _id: 0
+    }
+  }
+])
+
+11. db.pracownicy.aggregate([
+  {
+    $lookup: {
+      from: "zespoly",
+      localField: "id_zesp",
+      foreignField: "id_zesp",
+      as: "zespol_info"
+    }
+  },
+  {
+    $match: {
+      "zespol_info.adres": { $regex: "Strzelecka", $options: "i" }
+    }
+  },
+  {
+    $project: {
+      nazwisko: 1,
+      zespol: { $arrayElemAt: ["$zespol_info.nazwa", 0] },
+      _id: 0
+    }
+  }
+])
+
+12. db.pracownicy.aggregate([
+  {
+    $lookup: {
+      from: "zespoly",        
+      localField: "id_zesp",        
+      foreignField: "id_zesp",     
+      as: "zespol_info"             
+    }
+  },
+  {
+    $group: {
+      _id: { $arrayElemAt: ["$zespol_info.nazwa", 0] }, 
+      liczba: { $sum: 1 }
+    }
+  },
+  {
+    $project: {
+      _id: 0, 
+      zespol: "$_id", 
+      liczba: 1                   
+    }
+  }
+])
+
+13.
+var pracownicy = db.pracownicy.find();
+
+
+while (pracownicy.hasNext()) {
+    var prac = pracownicy.next();
+    var zesp = db.zespoly.findOne({"id_zesp": prac.id_zesp});
+    if (zesp) {
+        db.pracownicy.updateOne(
+            { _id: prac._id },
+            { $set: { "id_zesp": zesp._id } }
+        );
+        print("Zaktualizowano: " + prac.nazwisko + " - Nowe id_zesp: " + zesp._id);
+    } else {
+        print("Nie znaleziono zespołu dla pracownika: " + prac.nazwisko);
+    }
+}
+
+14. db.produkty.find(
+  {
+    $and: [
+      { oceny: { $not: { $elemMatch: { osoba: "Ania" } } } },
+      { oceny: { $not: { $elemMatch: { osoba: "Karol" } } } }
+    ]
+  },
+  {
+    nazwa: 1,
+    _id: 0
+  }
+)
+
+15. db.produkty.aggregate([
+  {
+    $unwind: "$oceny" 
+  },
+  {
+    $group: {
+      _id: "$nazwa",
+      srednia_ocena: { $avg: "$oceny.ocena" }
+    }
+  },
+  {
+    $sort: { srednia_ocena: -1 }
+  },
+  {
+    $limit: 1
+  },
+  {
+    $project: {
+      _id: 0,
+      produkt: "$_id",
+      srednia_ocena: 1
+    }
+  }
+])
+
+16. db.produkty.updateOne(
+  { nazwa: "Kosiarka elektryczna" },
+  {
+    $push: { 
+      oceny: { osoba: "Ania", ocena: 4 }
+    }
+  }
+)
+
+17. db.produkty.aggregate([
+  {
+    $addFields: {
+      liczba_ocen_4: {
+        $size: {
+          $filter: {
+            input: "$oceny",
+            as: "ocena",
+            cond: { $eq: ["$$ocena.ocena", 4] }
+          }
+        }
+      },
+      ania_ocena_4: {
+        $size: {
+          $filter: {
+            input: "$oceny",
+            as: "ocena",
+            cond: { 
+              $and: [
+                { $eq: ["$$ocena.ocena", 4] },
+                { $eq: ["$$ocena.osoba", "Ania"] }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    $match: {
+      liczba_ocen_4: 1,
+      ania_ocena_4: 1
+    }
+  },
+  {
+    $project: {
+      _id: 1,
+      nazwa: 1 
+    }
+  }
+])
+
+18. db.produkty.updateMany(
+  {},
+  {
+    $pull: {
+      oceny: { ocena: { $lte: 3 } }
+    }
+  }
+)
